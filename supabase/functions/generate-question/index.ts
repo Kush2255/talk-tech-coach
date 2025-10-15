@@ -1,0 +1,85 @@
+import "https://deno.land/x/xhr@0.1.0/mod.ts";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const { type, topic } = await req.json();
+    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+
+    if (!LOVABLE_API_KEY) {
+      throw new Error('LOVABLE_API_KEY is not configured');
+    }
+
+    let systemPrompt = '';
+    
+    if (type === 'behavioral') {
+      systemPrompt = `You are an expert HR interviewer. Generate a single, clear behavioral interview question that helps assess soft skills, problem-solving, teamwork, or leadership. Examples: "Tell me about a time when you faced a difficult challenge at work", "Describe a situation where you had to work with a difficult team member", "How do you handle tight deadlines?". Return only the question, nothing else.`;
+    } else if (type === 'technical') {
+      const topicMap: Record<string, string> = {
+        'java': 'Java programming concepts, OOP, collections, multithreading, and JVM',
+        'dbms': 'Database management systems, SQL, normalization, ACID properties, and transactions',
+        'os': 'Operating systems, processes, threads, memory management, and scheduling',
+        'dsa': 'Data structures and algorithms, complexity analysis, sorting, searching, and graph algorithms',
+      };
+      
+      const topicDescription = topicMap[topic as string] || 'programming';
+      systemPrompt = `You are an expert technical interviewer specializing in ${topicDescription}. Generate a single, clear technical question that tests understanding of core concepts. The question should be specific, not too easy but not extremely difficult. Return only the question, nothing else.`;
+    }
+
+    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'google/gemini-2.5-flash',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: 'Generate one interview question.' }
+        ],
+      }),
+    });
+
+    if (!response.ok) {
+      if (response.status === 429) {
+        return new Response(JSON.stringify({ error: "Rate limit exceeded, please try again later." }), {
+          status: 429,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      if (response.status === 402) {
+        return new Response(JSON.stringify({ error: "Payment required, please add credits to your workspace." }), {
+          status: 402,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      const errorText = await response.text();
+      console.error('AI gateway error:', response.status, errorText);
+      throw new Error('AI gateway error');
+    }
+
+    const data = await response.json();
+    const question = data.choices[0].message.content;
+
+    return new Response(
+      JSON.stringify({ question }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  } catch (error) {
+    console.error('Error in generate-question:', error);
+    return new Response(
+      JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+});
