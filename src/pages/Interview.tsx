@@ -1,28 +1,23 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Mic, MicOff, Send, ArrowLeft, Loader2 } from "lucide-react";
+import { Send, ArrowLeft, Loader2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { AudioVisualizer } from "@/components/AudioVisualizer";
 
 const Interview = () => {
   const { type } = useParams<{ type: "behavioral" | "technical" }>();
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [currentQuestion, setCurrentQuestion] = useState("");
   const [userAnswer, setUserAnswer] = useState("");
-  const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [selectedTopic, setSelectedTopic] = useState<string>("");
   const [feedback, setFeedback] = useState<string | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
-  const [audioStream, setAudioStream] = useState<MediaStream | null>(null);
 
   useEffect(() => {
     const checkUser = async () => {
@@ -89,71 +84,6 @@ const Interview = () => {
     } catch (error: any) {
       toast({
         title: "Error generating question",
-        description: error.message,
-        variant: "destructive",
-      });
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  const startRecording = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      setAudioStream(stream);
-      const mediaRecorder = new MediaRecorder(stream);
-      mediaRecorderRef.current = mediaRecorder;
-      audioChunksRef.current = [];
-
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          audioChunksRef.current.push(event.data);
-        }
-      };
-
-      mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
-        await transcribeAudio(audioBlob);
-        stream.getTracks().forEach(track => track.stop());
-        setAudioStream(null);
-      };
-
-      mediaRecorder.start();
-      setIsRecording(true);
-    } catch (error: any) {
-      toast({
-        title: "Microphone access denied",
-        description: "Please allow microphone access to use voice input",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
-    }
-  };
-
-  const transcribeAudio = async (audioBlob: Blob) => {
-    setIsProcessing(true);
-    try {
-      const reader = new FileReader();
-      reader.readAsDataURL(audioBlob);
-      reader.onloadend = async () => {
-        const base64Audio = reader.result?.toString().split(",")[1];
-        
-        const { data, error } = await supabase.functions.invoke("transcribe-audio", {
-          body: { audio: base64Audio },
-        });
-
-        if (error) throw error;
-        setUserAnswer(data.text);
-      };
-    } catch (error: any) {
-      toast({
-        title: "Transcription failed",
         description: error.message,
         variant: "destructive",
       });
@@ -276,49 +206,26 @@ const Interview = () => {
                 <CardTitle className="text-lg">Your Answer</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <AudioVisualizer stream={audioStream} isRecording={isRecording} />
                 <Textarea
                   value={userAnswer}
                   onChange={(e) => setUserAnswer(e.target.value)}
-                  placeholder="Type your answer or use voice input..."
-                  className="min-h-[150px]"
-                  disabled={isRecording || isProcessing}
+                  placeholder="Type your answer here..."
+                  className="min-h-[200px]"
+                  disabled={isProcessing}
                 />
-                <div className="flex gap-3">
-                  {!isRecording ? (
-                    <Button
-                      onClick={startRecording}
-                      variant="outline"
-                      disabled={isProcessing}
-                      className="flex-1"
-                    >
-                      <Mic className="w-4 h-4 mr-2" />
-                      Start Recording
-                    </Button>
+                <Button
+                  onClick={submitAnswer}
+                  disabled={!userAnswer.trim() || isProcessing}
+                  variant="gradient"
+                  className="w-full"
+                >
+                  {isProcessing ? (
+                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
                   ) : (
-                    <Button
-                      onClick={stopRecording}
-                      variant="destructive"
-                      className="flex-1"
-                    >
-                      <MicOff className="w-4 h-4 mr-2" />
-                      Stop Recording
-                    </Button>
+                    <Send className="w-4 h-4 mr-2" />
                   )}
-                  <Button
-                    onClick={submitAnswer}
-                    disabled={!userAnswer.trim() || isProcessing}
-                    variant="gradient"
-                    className="flex-1"
-                  >
-                    {isProcessing ? (
-                      <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                    ) : (
-                      <Send className="w-4 h-4 mr-2" />
-                    )}
-                    Submit Answer
-                  </Button>
-                </div>
+                  Submit Answer
+                </Button>
               </CardContent>
             </Card>
 
