@@ -7,6 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Mic, MicOff, Send, ArrowLeft, Loader2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { AudioVisualizer } from "@/components/AudioVisualizer";
 
 const Interview = () => {
   const { type } = useParams<{ type: "behavioral" | "technical" }>();
@@ -21,6 +22,7 @@ const Interview = () => {
   const { toast } = useToast();
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  const [audioStream, setAudioStream] = useState<MediaStream | null>(null);
 
   useEffect(() => {
     const checkUser = async () => {
@@ -98,6 +100,7 @@ const Interview = () => {
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      setAudioStream(stream);
       const mediaRecorder = new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
@@ -112,6 +115,7 @@ const Interview = () => {
         const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
         await transcribeAudio(audioBlob);
         stream.getTracks().forEach(track => track.stop());
+        setAudioStream(null);
       };
 
       mediaRecorder.start();
@@ -272,6 +276,7 @@ const Interview = () => {
                 <CardTitle className="text-lg">Your Answer</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
+                <AudioVisualizer stream={audioStream} isRecording={isRecording} />
                 <Textarea
                   value={userAnswer}
                   onChange={(e) => setUserAnswer(e.target.value)}
