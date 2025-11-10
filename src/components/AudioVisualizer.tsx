@@ -38,6 +38,12 @@ export const AudioVisualizer = ({ stream, isRecording }: AudioVisualizerProps) =
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
+    // Get computed CSS colors
+    const getComputedColor = (variable: string) => {
+      const value = getComputedStyle(document.documentElement).getPropertyValue(variable).trim();
+      return `hsl(${value})`;
+    };
+
     const draw = () => {
       if (!analyserRef.current || !canvas || !ctx) return;
 
@@ -47,8 +53,8 @@ export const AudioVisualizer = ({ stream, isRecording }: AudioVisualizerProps) =
 
       // Clear canvas with gradient background
       const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
-      gradient.addColorStop(0, "hsl(var(--background))");
-      gradient.addColorStop(1, "hsl(var(--card))");
+      gradient.addColorStop(0, getComputedColor('--background'));
+      gradient.addColorStop(1, getComputedColor('--card'));
       ctx.fillStyle = gradient;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -61,9 +67,9 @@ export const AudioVisualizer = ({ stream, isRecording }: AudioVisualizerProps) =
         
         // Create gradient for each bar
         const barGradient = ctx.createLinearGradient(0, canvas.height - barHeight, 0, canvas.height);
-        barGradient.addColorStop(0, "hsl(var(--primary))");
-        barGradient.addColorStop(0.5, "hsl(var(--primary-glow))");
-        barGradient.addColorStop(1, "hsl(var(--accent))");
+        barGradient.addColorStop(0, getComputedColor('--primary'));
+        barGradient.addColorStop(0.5, getComputedColor('--primary-glow'));
+        barGradient.addColorStop(1, getComputedColor('--accent'));
         
         ctx.fillStyle = barGradient;
         ctx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
